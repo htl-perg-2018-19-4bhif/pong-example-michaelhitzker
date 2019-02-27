@@ -1,20 +1,25 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="X-UA-Compatible" content="ie=edge">
     <title>Pong Lab - Ball</title>
     <script src="hammer.js"></script>
-    <script src="index.js"></script>
     <link rel="stylesheet" type="text/css" href="index.css">
 </head>
+
 <body>
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="index.js"></script>
+
     <svg id="board">
-        <rect id="ball" class="white-fill" width="10" height="10"/>
-        <rect id="player1" class="white-fill" width="20" height="100"/>
-        <rect id="player2" class="white-fill" width="20" height="100"/>
+        <rect id="ball" class="white-fill" width="10" height="10" />
+        <rect id="player1" class="white-fill" width="20" height="100" />
+        <rect id="player2" class="white-fill" width="20" height="100" />
     </svg>
-    
+
 </body>
+
 </html>

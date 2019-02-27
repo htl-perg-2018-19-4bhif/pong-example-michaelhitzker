@@ -1,5 +1,5 @@
 module.exports = {
     "files": "index.*",
     "server": "./dist/",
-    "reloadDebounce": 2000
+    "reloadDebounce": 2000,
 };

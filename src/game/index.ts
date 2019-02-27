@@ -49,21 +49,67 @@ window.addEventListener("load", async () => {
   let player2Points = 0;
 
   let ballCurrentPosition: Point;
-  let currentPlayer1Position;
+  let myCurrentPosition;
+
+  let myPaddle;
+  let enemyPaddle;
+
+  let playerNumber: number;
 
   let shouldStartNewRound = false;
 
+  let globalTargetPosition;
+
   let oldText: SVGTextElement;
 
-  setInitialPlayerPosition();
+  //@ts-ignore
+  const socket = io();
 
-  startGame();
+  console.log(socket);
+
+  socket.on('playerNumber', pNumber => {
+    if (pNumber === 1) {
+      myPaddle = player1;
+      enemyPaddle = player2;
+      playerNumber = pNumber;
+      startGame();
+    } else if (pNumber === 2) {
+      myPaddle = player2;
+      enemyPaddle = player1;
+      playerNumber = pNumber;
+
+      drawPoints();
+      myCurrentPosition = parseInt(myPaddle.getAttribute('y'));
+      addKeyListeners();
+    } else {
+      console.log('sorry, we are full');
+    }
+  });
+
+  socket.on('PaddleMove', position => {
+    // Add code of the pressed key to HTML list
+    enemyPaddle.setAttribute('y', `${position}`);
+  });
+
+  socket.on('BallMove', targetBallPosition => {
+    moveBall(targetBallPosition);
+  });
+
+  socket.on('points', points => {
+    player1Points = points[0];
+    player2Points = points[1];
+    drawPoints();
+  })
+
+
+
+  setInitialPlayerPosition();
 
   async function startGame() {
     shouldStartNewRound = false;
 
     drawPoints();
-    currentPlayer1Position = parseInt(player1.getAttribute('y'));
+    myCurrentPosition = parseInt(myPaddle.getAttribute('y'));
     addKeyListeners();
 
     // Move ball to center of the screen
@@ -80,10 +126,14 @@ window.addEventListener("load", async () => {
 
     do {
       if (shouldStartNewRound) {
+
+        let points = Array();
+        points[0] = player1Points;
+        points[1] = player2Points;
+        socket.emit('points', points);
         startGame();
         return;
       }
-
       // Calculate target.
       // X-coordinate iw either right or left border of browser window (depending on
       //              target quadrant)
@@ -97,6 +147,8 @@ window.addEventListener("load", async () => {
       };
 
       // Animate ball to calculated target position
+
+
       const borderTouch = await animateBall(ballCurrentPosition, targetBallPosition);
 
       // Based on where the ball touched the browser window, we change the new target quadrant.
@@ -123,6 +175,8 @@ window.addEventListener("load", async () => {
       // outside of the visible browser window.
       ballCurrentPosition.x = Math.min(Math.max(borderTouch.touchPosition.x - ballHalfSize.width, 0) + ballHalfSize.width, clientSize.width);
       ballCurrentPosition.y = Math.min(Math.max(borderTouch.touchPosition.y - ballHalfSize.height, 0) + ballHalfSize.height, clientSize.height);
+
+
     } while (true); // Forever
   }
 
@@ -167,7 +221,7 @@ window.addEventListener("load", async () => {
   /** Helper function that starts movement when keydown happens */
   function startMoving() {
     // Move paddle every 4ms
-    interval = setInterval(() => movePaddle(currentPlayer1Position + playerDirection), 4);
+    interval = setInterval(() => movePaddle(myCurrentPosition + playerDirection), 4);
   }
 
   /** Helper function that stops movement when keyup happens */
@@ -182,11 +236,10 @@ window.addEventListener("load", async () => {
    */
   function movePaddle(targetPosition: number): void {
     if (targetPosition >= 0 && (targetPosition + player1Size.height) <= clientSize.height) {
-      currentPlayer1Position = targetPosition;
+      myCurrentPosition = targetPosition;
 
-      // Note the 'px' at the end of the coordinates for CSS. Don't
-      // forget it. Without the 'px', it doesn't work.
-      player1.setAttribute('y', `${currentPlayer1Position}`);
+      myPaddle.setAttribute('y', `${myCurrentPosition}`);
+      socket.emit('PaddleMove', myCurrentPosition);
     }
   }
 
@@ -220,6 +273,7 @@ window.addEventListener("load", async () => {
         animatedPosition = movePoint(animatedPosition, distancePerInterval);
 
         // Move the ball to the new position
+        socket.emit('BallMove', animatedPosition);
         moveBall(animatedPosition);
 
         // Check if the ball touches the browser window's border
@@ -303,9 +357,9 @@ window.addEventListener("load", async () => {
     text.id = 'points'
     text.textContent = `${player1Points}:${player2Points}`;
 
-    if(oldText){
+    if (oldText) {
       svg.replaceChild(text, oldText);
-    }else{
+    } else {
       svg.appendChild(text);
     }
     oldText = text;

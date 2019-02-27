@@ -23,6 +23,7 @@ window.addEventListener("load", async () => {
 
   // Get some information about the browser window and the ball. This information will
   // never change. So it makes sense to get it only once to make the rest of the program faster.
+  const svg = document.getElementById('board')
   const ball = document.getElementById('ball');
   const ballSize: Size = { width: parseInt(ball.getAttribute('width')), height: parseInt(ball.getAttribute('height')) };
   const ballHalfSize = splitSize(ballSize, 2);
@@ -34,73 +35,96 @@ window.addEventListener("load", async () => {
   const player2Size: Size = { width: parseInt(player2.getAttribute('width')), height: parseInt(player2.getAttribute('height')) }
   const marginToBorder = 20;
 
-  const hammertime = new Hammer(player1, null);
+  const hammertime = new Hammer(player1);
   hammertime.get('pan').set({ direction: Hammer.DIRECTION_DOWN | Hammer.DIRECTION_UP });
-  hammertime.on('pan', ev => 
+  hammertime.on('pan', ev =>
     // Put center of paddle to the center of the user's finger
-    movePaddle(ev.center.y - player1Size.height/2));
+    movePaddle(ev.center.y - player1Size.height / 2));
 
   const playerSpeed = 1;
   let interval: NodeJS.Timeout;
   let playerDirection: number;
 
+  let player1Points = 0;
+  let player2Points = 0;
+
+  let ballCurrentPosition: Point;
+  let currentPlayer1Position;
+
+  let shouldStartNewRound = false;
+
+  let oldText: SVGTextElement;
+
   setInitialPlayerPosition();
-  let currentPlayer1Position = parseInt(player1.getAttribute('y'));
-  addKeyListeners();
 
-  // Move ball to center of the screen
-  let ballCurrentPosition: Point = { x: clientHalfSize.width, y: clientHalfSize.height };
-  moveBall(ballCurrentPosition);
+  startGame();
 
-  // Calculate the random angle that the ball should initially travel.
-  // Should be an angle between 27.5 and 45 DEG (=PI/8 and PI/4 RAD)
-  const angle = Math.PI / 8 + Math.random() * Math.PI / 8;
+  async function startGame() {
+    shouldStartNewRound = false;
 
-  // Calculate the random quadrant into which the ball should initially travel.
-  // 0 = upper right, 1 = lower right, 2 = lower left, 3 = upper left
-  let quadrant = Math.floor(Math.random() * 4);
+    drawPoints();
+    currentPlayer1Position = parseInt(player1.getAttribute('y'));
+    addKeyListeners();
 
-  do {
-    // Calculate target.
-    // X-coordinate iw either right or left border of browser window (depending on
-    //              target quadrant)
-    // y-coordinate is calculated using tangens angle function of angle
-    //              (note: tan(angle) = delta-y / delta-x). The sign depends on
-    //              the target quadrant)
-    const targetX = (quadrant === 0 || quadrant === 1) ? clientSize.width - ballSize.width : 0;
-    const targetBallPosition: Point = {
-      x: targetX,
-      y: ballCurrentPosition.y + Math.tan(angle) * Math.abs(targetX - ballCurrentPosition.x) * ((quadrant === 0 || quadrant === 3) ? -1 : 1)
-    };
+    // Move ball to center of the screen
+    ballCurrentPosition = { x: clientHalfSize.width, y: clientHalfSize.height };
+    moveBall(ballCurrentPosition);
 
-    // Animate ball to calculated target position
-    const borderTouch = await animateBall(ballCurrentPosition, targetBallPosition);
+    // Calculate the random angle that the ball should initially travel.
+    // Should be an angle between 27.5 and 45 DEG (=PI/8 and PI/4 RAD)
+    const angle = Math.PI / 8 + Math.random() * Math.PI / 8;
 
-    // Based on where the ball touched the browser window, we change the new target quadrant.
-    // Note that in this solution the angle stays the same.
-    switch (borderTouch.touchDirection) {
-      case Direction.left:
-        quadrant = (quadrant === 2) ? 1 : 0;
-        break;
-      case Direction.right:
-        quadrant = (quadrant === 0) ? 3 : 2;
-        break;
-      case Direction.top:
-        quadrant = (quadrant === 0) ? 1 : 2;
-        break;
-      case Direction.bottom:
-        quadrant = (quadrant === 2) ? 3 : 0;
-        break;
-      default:
-        throw new Error('Invalid direction, should never happen');
-    }
+    // Calculate the random quadrant into which the ball should initially travel.
+    // 0 = upper right, 1 = lower right, 2 = lower left, 3 = upper left
+    let quadrant = Math.floor(Math.random() * 4);
 
-    // The touch position is the new current position of the ball.
-    // Note that we fix the position here slightly in case a small piece of the ball has reached an area
-    // outside of the visible browser window.
-    ballCurrentPosition.x = Math.min(Math.max(borderTouch.touchPosition.x - ballHalfSize.width, 0) + ballHalfSize.width, clientSize.width);
-    ballCurrentPosition.y = Math.min(Math.max(borderTouch.touchPosition.y - ballHalfSize.height, 0) + ballHalfSize.height, clientSize.height);
-  } while (true); // Forever
+    do {
+      if (shouldStartNewRound) {
+        startGame();
+        return;
+      }
+
+      // Calculate target.
+      // X-coordinate iw either right or left border of browser window (depending on
+      //              target quadrant)
+      // y-coordinate is calculated using tangens angle function of angle
+      //              (note: tan(angle) = delta-y / delta-x). The sign depends on
+      //              the target quadrant)
+      const targetX = (quadrant === 0 || quadrant === 1) ? clientSize.width - ballSize.width : 0;
+      const targetBallPosition: Point = {
+        x: targetX,
+        y: ballCurrentPosition.y + Math.tan(angle) * Math.abs(targetX - ballCurrentPosition.x) * ((quadrant === 0 || quadrant === 3) ? -1 : 1)
+      };
+
+      // Animate ball to calculated target position
+      const borderTouch = await animateBall(ballCurrentPosition, targetBallPosition);
+
+      // Based on where the ball touched the browser window, we change the new target quadrant.
+      // Note that in this solution the angle stays the same.
+      switch (borderTouch.touchDirection) {
+        case Direction.left:
+          quadrant = (quadrant === 2) ? 1 : 0;
+          break;
+        case Direction.right:
+          quadrant = (quadrant === 0) ? 3 : 2;
+          break;
+        case Direction.top:
+          quadrant = (quadrant === 0) ? 1 : 2;
+          break;
+        case Direction.bottom:
+          quadrant = (quadrant === 2) ? 3 : 0;
+          break;
+        default:
+          throw new Error('Invalid direction, should never happen');
+      }
+
+      // The touch position is the new current position of the ball.
+      // Note that we fix the position here slightly in case a small piece of the ball has reached an area
+      // outside of the visible browser window.
+      ballCurrentPosition.x = Math.min(Math.max(borderTouch.touchPosition.x - ballHalfSize.width, 0) + ballHalfSize.width, clientSize.width);
+      ballCurrentPosition.y = Math.min(Math.max(borderTouch.touchPosition.y - ballHalfSize.height, 0) + ballHalfSize.height, clientSize.height);
+    } while (true); // Forever
+  }
 
   function addKeyListeners() {
     // Listen to keydown event
@@ -157,7 +181,6 @@ window.addEventListener("load", async () => {
    * @param targetPosition Target position. No movement is done if target position is invalid
    */
   function movePaddle(targetPosition: number): void {
-    console.log(`${targetPosition} ${player1Size.height} ${clientSize.height}`);
     if (targetPosition >= 0 && (targetPosition + player1Size.height) <= clientSize.height) {
       currentPlayer1Position = targetPosition;
 
@@ -201,10 +224,25 @@ window.addEventListener("load", async () => {
 
         // Check if the ball touches the browser window's border
         let touchDirection: Direction;
-        if ((animatedPosition.x - ballHalfSize.width) < 0) { touchDirection = Direction.left; }
+        if ((animatedPosition.x - ballHalfSize.width) < 0) {
+          player2Points++;
+          shouldStartNewRound = true;
+          touchDirection = Direction.left;
+        }
         if ((animatedPosition.y - ballHalfSize.height) < 0) { touchDirection = Direction.top; }
-        if ((animatedPosition.x + ballHalfSize.width) > clientSize.width) { touchDirection = Direction.right; }
+        if ((animatedPosition.x + ballHalfSize.width) > clientSize.width) {
+          player1Points++;
+          touchDirection = Direction.right;
+          shouldStartNewRound = true;
+        }
         if ((animatedPosition.y + ballHalfSize.height) > clientSize.height) { touchDirection = Direction.bottom; }
+
+        //Check if ball touches player1
+        const isInPlayer1Height = (animatedPosition.y >= parseInt(player1.getAttribute('y')) && animatedPosition.y <= (parseInt(player1.getAttribute('y')) + player1Size.height))
+        if (isInPlayer1Height && ((animatedPosition.x - ballHalfSize.width) < player1Size.width + marginToBorder)) { touchDirection = Direction.left; }
+
+        const isInPlayer2Height = (animatedPosition.y >= parseInt(player2.getAttribute('y')) && animatedPosition.y <= (parseInt(player2.getAttribute('y')) + player2Size.height))
+        if (isInPlayer2Height && ((animatedPosition.x + ballHalfSize.width) > clientSize.width - marginToBorder - player2Size.width)) { touchDirection = Direction.right; }
 
         if (touchDirection !== undefined) {
           // Ball touches border -> stop animation
@@ -255,5 +293,21 @@ window.addEventListener("load", async () => {
       width: s.width / divider,
       height: s.height / divider
     };
+  }
+
+  function drawPoints() {
+    const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    text.setAttribute('x', '10');
+    text.setAttribute('y', '20');
+    text.setAttribute('fill', '#fff');
+    text.id = 'points'
+    text.textContent = `${player1Points}:${player2Points}`;
+
+    if(oldText){
+      svg.replaceChild(text, oldText);
+    }else{
+      svg.appendChild(text);
+    }
+    oldText = text;
   }
 });
